@@ -167,9 +167,9 @@ async function streamDriveFile(res,d){
  }catch(e){if(!res.headersSent)return res.status(502).json({error:"Could not retrieve file from Google Drive"});return res.end();}
 }
 // TEMPORARY: creates and verifies the app-owned Google Drive upload folder.
-// Super-Admin-only. Remove this endpoint after the folder ID has been copied
-// to the GOOGLE_DRIVE_FOLDER_ID environment variable.
-app.post("/api/admin/drive/create-folder",requireAdmin,async(req,res)=>{
+// Authenticated users only (global /api auth middleware applies). Remove this
+// endpoint after the folder ID has been copied to GOOGLE_DRIVE_FOLDER_ID.
+app.post("/api/admin/drive/create-folder",async(req,res)=>{
  try{
   const token=await driveToken();
   const folderName="Paper Work App Uploads";
