@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  STORE_MANAGER
+}
+
+enum DocumentStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CORRECTION_REQUESTED
+  ARCHIVED
+}
+
+enum DocumentCategory {
+  INVOICE
+  DAILY_REPORT
+  EXPENSE
+  BILL_RECEIPT
+  SALES_REPORT
+  OTHER
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+  CORRECTION_REQUESTED
+}
+
+model User {
+  id           String         @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String         @unique
+  passwordHash String
+  role         Role           @default(STORE_MANAGER)
+  active       Boolean        @default(true)
+  storeId      String?        @db.ObjectId
+  store        Store?         @relation(fields: [storeId], references: [id])
+  uploaded     DocumentRecord[] @relation("UploadedDocuments")
+  reviewed     DocumentRecord[] @relation("ReviewedDocuments")
+  approvals    ApprovalLog[]
+  auditEntries AuditLog[]     @relation("AuditActor")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model Store {
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  code        String           @unique
+  name        String
+  address     String?
+  city        String?
+  active      Boolean          @default(true)
+  managers    User[]
+  documents   DocumentRecord[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model DocumentRecord {
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  storeId         String           @db.ObjectId
+  store           Store            @relation(fields: [storeId], references: [id])
+  category        DocumentCategory
+  title           String
+  documentDate    DateTime?
+  financialYear   String?
+  referenceNumber String?
+  amount          Float?
+  currency        String           @default("INR")
+  notes           String?
+  status          DocumentStatus   @default(DRAFT)
+  originalName    String?
+  storedName      String?
+  mimeType        String?
+  fileSize        Int?
+  uploadedById    String           @db.ObjectId
+  uploadedBy      User             @relation("UploadedDocuments", fields: [uploadedById], references: [id])
+  reviewedById    String?          @db.ObjectId
+  reviewedBy      User?            @relation("ReviewedDocuments", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  rejectionReason String?
+  version         Int              @default(1)
+  previousVersionId String?        @db.ObjectId
+  approvals       ApprovalLog[]
+  auditEntries    AuditLog[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([storeId, financialYear, category])
+  @@index([storeId, documentDate])
+  @@index([status])
+  @@index([referenceNumber])
+}
+
+model ApprovalLog {
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  documentId  String           @db.ObjectId
+  document    DocumentRecord   @relation(fields: [documentId], references: [id])
+  actorId     String           @db.ObjectId
+  actor       User             @relation(fields: [actorId], references: [id])
+  decision    ApprovalDecision
+  comment     String?
+  createdAt   DateTime         @default(now())
+}
+
+model AuditLog {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  actorId     String          @db.ObjectId
+  actor       User            @relation("AuditActor", fields: [actorId], references: [id])
+  documentId  String?         @db.ObjectId
+  document    DocumentRecord? @relation(fields: [documentId], references: [id])
+  action      String
+  entityType  String
+  entityId    String
+  before      Json?
+  after       Json?
+  createdAt   DateTime        @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+
+model MonthlySlipEntry {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  storeId     String   @db.ObjectId
+  year        Int
+  month       Int
+  reportDate  String?
+  fileName    String?
+  slipDetails String?
+  amount      Float?
+  currency    String   @default("USD")
+  notes       String?
+  enteredBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([storeId, year, month])
+}

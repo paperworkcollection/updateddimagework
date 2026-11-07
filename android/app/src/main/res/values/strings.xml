@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Paper Work</string>
+    <!-- Replace this with your deployed HTTPS backend URL before building the APK. -->
+    <string name="api_base_url">https://paperwork-wo3n.onrender.com/</string>
+</resources>

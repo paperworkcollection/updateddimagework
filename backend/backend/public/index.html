@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111">
+  <title>Paper Work</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div id="loginView" class="login-shell">
+    <section class="login-art">
+      <div class="brand brand-light"><img class="brand-logo" src="/paper-work-logo.png" alt=""><span>Paper Work</span></div>
+      <div class="login-message">
+        <span class="eyebrow">STORE SHIFT REPORTS</span>
+        <h1>One place for every store report.</h1>
+        <p>Upload daily shift reports, keep additional files organised and maintain monthly workbooks.</p>
+      </div>
+      <div class="login-foot">Paper Work · Secure store archive</div>
+    </section>
+    <section class="login-panel">
+      <form id="loginForm" class="login-card">
+        <div class="brand"><img class="brand-logo" src="/paper-work-logo.png" alt=""><span>Paper Work</span></div>
+        <div class="login-heading"><h2>Welcome back</h2><p>Sign in to continue.</p></div>
+        <label>Email<input name="email" type="email" required autocomplete="username"></label>
+        <label>Password<input name="password" type="password" required autocomplete="current-password"></label>
+        <div id="loginError" class="form-error"></div>
+        <button class="btn btn-primary btn-wide" type="submit">Sign in →</button>
+      </form>
+    </section>
+  </div>
+
+  <div id="appView" class="app-shell hidden">
+    <div id="sidebarBackdrop" class="sidebar-backdrop"></div>
+    <aside id="sidebar" class="sidebar">
+      <div class="side-brand"><img class="brand-logo" src="/paper-work-logo.png" alt=""><span>Paper Work</span></div>
+      <div class="workspace-label">WORKSPACE</div>
+      <nav class="nav-list">
+        <button class="nav-item active" data-page="home" type="button">▦ &nbsp;Home</button>
+        <button class="nav-item" data-page="stores" data-admin type="button">▣ &nbsp;Stores</button>
+        <button class="nav-item" data-page="uploads" type="button">▤ &nbsp;My uploads</button>
+      </nav>
+      <div class="sidebar-bottom"><div class="side-version">PAPER WORK · STORE ARCHIVE</div></div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <button id="sidebarToggle" class="mobile-menu-btn" type="button" aria-label="Open navigation" aria-expanded="false">☰</button>
+        <div class="breadcrumb">Paper Work <span>/</span><strong id="crumb">Home</strong></div>
+        <div class="user-menu">
+          <div class="avatar" id="userAvatar">U</div>
+          <div class="user-meta"><strong id="userName">User</strong><span id="userRole">Role</span></div>
+          <button id="logoutBtn" class="btn btn-quiet btn-small" type="button">Sign out</button>
+        </div>
+      </header>
+
+      <div class="content-wrap">
+        <section id="page-home" class="page active">
+          <div class="page-heading"><div><div class="eyebrow">YOUR WORKSPACE</div><h1 id="welcomeTitle">Welcome</h1><p id="homeSubtitle">Upload and view your store's daily reports.</p></div></div>
+
+          <div id="managerPanel" class="panel upload-panel">
+            <div><span class="eyebrow">REQUIRED DAILY SUBMISSION</span><h2>Daily Shift Report</h2><p>Upload one report image for your store each day.</p></div>
+            <form id="dailyUploadForm"><input type="file" name="file" accept="image/jpeg,image/png,image/webp" required><button class="btn btn-primary" type="submit">Upload Daily Shift Report</button><div class="form-error" id="dailyError"></div></form>
+            <div class="upload-divider"></div>
+            <div><span class="eyebrow">OPTIONAL</span><h2>Other Files</h2><p>Upload additional documents or images whenever needed.</p></div>
+            <form id="otherUploadForm"><input type="file" name="file" accept="image/*,.pdf,.xlsx,.xls,.doc,.docx" required><button class="btn btn-secondary" type="submit">Upload Other File</button><div class="form-error" id="otherError"></div></form>
+          </div>
+
+          <div id="adminHome" class="hidden">
+            <div class="admin-store-shortcut"><div><strong>Manage stores and monthly workbooks</strong><span>Open a store, choose a year and access its monthly workbook.</span></div><button class="btn btn-primary" id="openStoresHome" type="button">Open Stores →</button></div>
+            <div class="stat-grid">
+              <article class="stat-card"><div class="stat-top"><span>Total stores</span></div><div class="stat-value" id="adminStoreCount">0</div></article>
+              <article class="stat-card"><div class="stat-top"><span>Uploaded files</span></div><div class="stat-value" id="adminFileCount">0</div></article>
+            </div>
+            <div class="panel drive-panel"><div><strong>Google Drive</strong><p id="driveStatus">Checking connection…</p></div><div class="action-group"><button class="btn btn-secondary" id="createManager" type="button">Create store login</button><button class="btn btn-primary" id="connectDrive" type="button">Connect Google Drive</button></div></div>
+            <p class="field-hint">Monthly workbooks are created in your connected Google Drive.</p>
+            <div class="section-row"><div><h2>Admin user management</h2><p>Edit accounts, deactivate access, or remove users.</p></div></div>
+            <div id="adminUsers" class="upload-list panel"><div class="empty-state">Loading users…</div></div>
+          </div>
+
+          <div class="section-row"><div><h2 id="recentHeading">My uploaded images and files</h2><p>Dates are shown beside each upload.</p></div><button class="text-btn" data-go="uploads" type="button">View all →</button></div>
+          <div id="homeUploads" class="upload-list panel"></div>
+        </section>
+
+        <section id="page-stores" class="page admin-only">
+          <div class="page-heading"><div><div class="eyebrow">STORE DIRECTORY</div><h1>Stores</h1><p>Select a store to open its monthly workbooks and uploaded images.</p></div><button class="btn btn-primary" id="addStoreBtn" type="button">＋ Add store</button></div>
+          <div class="panel filters"><div class="search-wrap"><span>⌕</span><input id="storeSearch" placeholder="Search store name"></div></div>
+          <div id="storeCards" class="store-card-grid"></div>
+        </section>
+
+        <section id="page-store-detail" class="page admin-only">
+          <div class="page-heading"><div><div class="eyebrow">STORE DETAILS</div><h1 id="storeTitle">Store</h1><p>Choose a month to open its workbook in Google Drive.</p></div><button class="btn btn-secondary" id="backStores" type="button">← All stores</button></div>
+          <div class="section-row"><div><h2>Monthly workbooks</h2><p>Tap a month to open the generated Excel workbook in Google Drive.</p></div><label class="year-picker">Year <select id="monthYear"></select></label></div>
+          <div id="monthCards" class="month-grid"></div>
+          <div class="section-row"><div><h2>Uploaded images and files</h2><p>Original files with their upload dates.</p></div></div>
+          <div id="storeUploads" class="upload-list panel"></div>
+        </section>
+
+        <section id="page-uploads" class="page">
+          <div class="page-heading"><div><div class="eyebrow">FILE ARCHIVE</div><h1 id="uploadsTitle">My uploads</h1><p>Uploaded files with dates.</p></div></div>
+          <div class="panel filters"><div class="search-wrap"><span>⌕</span><input id="uploadSearch" placeholder="Search file or store"></div><input id="uploadDate" type="date"></div>
+          <div id="allUploads" class="upload-list panel"></div>
+        </section>
+      </div>
+
+      <nav class="mobile-bottom-nav" aria-label="Primary navigation">
+        <button class="mobile-nav-item active" data-page="home" type="button"><span>⌂</span><small>Home</small></button>
+        <button class="mobile-nav-item" data-page="stores" data-admin type="button"><span>▣</span><small>Stores</small></button>
+        <button class="mobile-nav-item" data-page="uploads" type="button"><span>▤</span><small>Uploads</small></button>
+      </nav>
+    </main>
+  </div>
+
+  <div id="modalBackdrop" class="modal-backdrop hidden">
+    <div class="modal">
+      <div class="modal-head"><div><span class="eyebrow">PAPER WORK</span><h2 id="modalTitle">Add store</h2></div><button id="closeModal" class="icon-btn" type="button">×</button></div>
+      <form id="modalForm"><div id="modalFields" class="modal-fields"></div><div id="modalError" class="form-error"></div><div class="modal-actions"><button type="button" class="btn btn-secondary" id="cancelModal">Cancel</button><button class="btn btn-primary" id="modalSubmit" type="submit">Save</button></div></form>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
