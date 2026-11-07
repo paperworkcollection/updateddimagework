@@ -166,6 +166,30 @@ async function streamDriveFile(res,d){
   return res.send(buffer);
  }catch(e){if(!res.headersSent)return res.status(502).json({error:"Could not retrieve file from Google Drive"});return res.end();}
 }
+// TEMPORARY: creates and verifies the app-owned Google Drive upload folder.
+// Super-Admin-only. Remove this endpoint after the folder ID has been copied
+// to the GOOGLE_DRIVE_FOLDER_ID environment variable.
+app.post("/api/admin/drive/create-folder",requireAdmin,async(req,res)=>{
+ try{
+  const token=await driveToken();
+  const folderName="Paper Work App Uploads";
+  const q=`name='${folderName.replace(/\\/g,"\\\\").replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const list=await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&pageSize=10&fields=files(id,name,mimeType,trashed)`,{headers:{Authorization:`Bearer ${token}`}});
+  const found=await list.json();
+  if(!list.ok){console.error(`Drive folder search failed (${list.status})`);return res.status(502).json({error:"Could not search Google Drive for the upload folder"});}
+  let folder=(found.files||[]).find(f=>f.name===folderName);
+  const existing=!!folder;
+  if(!folder){
+   const create=await fetch("https://www.googleapis.com/drive/v3/files?fields=id,name,mimeType",{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({name:folderName,mimeType:"application/vnd.google-apps.folder"})});
+   folder=await create.json();
+   if(!create.ok||!folder.id){console.error(`Drive folder create failed (${create.status}): ${folder.error?.message||"unknown"}`);return res.status(502).json({error:"Could not create Google Drive folder"});}
+  }
+  const check=await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folder.id)}?fields=id,name,mimeType,trashed`,{headers:{Authorization:`Bearer ${token}`}});
+  const meta=await check.json();
+  if(!check.ok||meta.trashed||meta.mimeType!=="application/vnd.google-apps.folder"){console.error(`Drive folder verification failed for folder ${folder.id} (${check.status})`);return res.status(502).json({error:"Could not verify Google Drive folder"});}
+  res.json({name:meta.name,folderId:meta.id,mimeType:meta.mimeType,verified:true,existing});
+ }catch(e){console.error(`Drive create-folder failed: ${e.message}`);return res.status(400).json({error:e.message||"Could not create Google Drive folder"});}
+});
 app.get("/api/drive/status",requireAdmin,async(req,res)=>{const c=await prisma.auditLog.findFirst({where:{entityType:"GoogleDrive",action:"TOKEN"},orderBy:{createdAt:"desc"}});res.json({connected:!!c,folderConfigured:!!process.env.GOOGLE_DRIVE_FOLDER_ID,clientConfigured:!!process.env.GOOGLE_CLIENT_ID,email:c?.after?.email||null});});
 app.get("/api/drive/connect",requireAdmin,async(req,res)=>{if(!process.env.GOOGLE_CLIENT_ID||!process.env.GOOGLE_CLIENT_SECRET)return res.status(400).json({error:"Configure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI first."});const state=jwt.sign({adminId:req.user.id},process.env.JWT_SECRET,{expiresIn:"10m"});const u=new URL("https://accounts.google.com/o/oauth2/v2/auth");u.search=new URLSearchParams({client_id:process.env.GOOGLE_CLIENT_ID,redirect_uri:process.env.GOOGLE_REDIRECT_URI, response_type:"code",scope:"https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets email",access_type:"offline",prompt:"consent",state}).toString();res.json({url:u.toString()});});
 app.get("/api/drive/callback",async(req,res)=>{try{const payload=jwt.verify(String(req.query.state||""),process.env.JWT_SECRET);const r=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({code:String(req.query.code||""),client_id:process.env.GOOGLE_CLIENT_ID,client_secret:process.env.GOOGLE_CLIENT_SECRET,redirect_uri:process.env.GOOGLE_REDIRECT_URI,grant_type:"authorization_code"})});const j=await r.json();if(!r.ok||!j.refresh_token)throw new Error(j.error_description||"Google did not return a refresh token. Revoke app access and connect again.");const info=await fetch("https://www.googleapis.com/oauth2/v2/userinfo",{headers:{Authorization:`Bearer ${j.access_token}`}}).then(x=>x.json());await audit({actorId:payload.adminId,action:"TOKEN",entityType:"GoogleDrive",entityId:"primary",after:{refreshToken:j.refresh_token,email:info.email}});res.send("<h2>Google Drive connected.</h2><p>You can close this tab and return to Paper Work.</p>");}catch(e){res.status(400).send(`<h2>Google Drive connection failed</h2><p>${String(e.message).replace(/[<>]/g,"")}</p>`);}});
