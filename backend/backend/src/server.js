@@ -105,15 +105,32 @@ app.get("/api/documents/:id/file",async(req,res)=>{const d=await prisma.document
 app.delete("/api/documents/:id",requireAdmin,async(req,res)=>{const d=await prisma.documentRecord.findUnique({where:{id:req.params.id}});if(!d)return res.status(404).json({error:"File not found"});if(d.storedName&&d.storedName.startsWith("gdrive:")){try{await deleteDriveFile(d.storedName.slice(7),null,true);}catch{return res.status(502).json({error:"Could not delete file from Google Drive. The file record was not deleted."});}}await prisma.documentRecord.delete({where:{id:d.id}});if(d.storedName&&!d.storedName.startsWith("gdrive:")){const p=path.join(uploadDir,path.basename(d.storedName));if(fs.existsSync(p))fs.unlinkSync(p);}await audit({actorId:req.user.id,action:"DELETE",entityType:"DocumentRecord",entityId:d.id,before:d});res.json({ok:true});});
 // Google Drive OAuth: refresh token is stored in the admin's MongoDB record after consent.
 async function driveToken(){if(!process.env.GOOGLE_CLIENT_ID||!process.env.GOOGLE_CLIENT_SECRET)throw new Error("Google Drive is not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to the backend environment.");const auth=await prisma.auditLog.findFirst({where:{entityType:"GoogleDrive",action:"TOKEN"},orderBy:{createdAt:"desc"}});const refreshToken=auth?.after?.refreshToken;if(!refreshToken)throw new Error("Connect your Google Drive first from the Admin dashboard.");const r=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:process.env.GOOGLE_CLIENT_ID,client_secret:process.env.GOOGLE_CLIENT_SECRET,refresh_token:refreshToken,grant_type:"refresh_token"})});const j=await r.json();if(!r.ok)throw new Error(j.error_description||"Google token refresh failed");return j.access_token;}
+async function assertDriveFolderAccessible(token){
+ const folderId=process.env.GOOGLE_DRIVE_FOLDER_ID;
+ if(!folderId)return;
+ const err=new Error("Google Drive folder is not found or not accessible by the connected Google account.");
+ let r;
+ try{r=await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,mimeType,trashed`,{headers:{Authorization:`Bearer ${token}`}});}catch(e){throw new Error("Could not verify Google Drive folder");}
+ if(r.status===404){console.error(`Google Drive folder check failed: folder ${folderId} not found or not accessible to the connected account`);throw err;}
+ if(!r.ok){console.error(`Google Drive folder check failed (${r.status}) for folder ${folderId}`);throw new Error("Could not verify Google Drive folder");}
+ const meta=await r.json();
+ if(meta.trashed){console.error(`Google Drive folder check failed: folder ${folderId} is trashed`);throw err;}
+ if(meta.mimeType&&meta.mimeType!=="application/vnd.google-apps.folder"){console.error(`Google Drive folder check failed: ${folderId} is not a folder`);throw new Error("Google Drive folder is invalid. Configure a valid folder ID for Google Drive uploads.");}
+}
 async function uploadDriveFile(filename,mimetype,buffer){
  const token=await driveToken();
+ await assertDriveFolderAccessible(token);
  const boundary=`pw_${crypto.randomBytes(8).toString("hex")}`;
  const mime=mimetype||"application/octet-stream";
  const metadata={name:filename,mimeType:mime,...(process.env.GOOGLE_DRIVE_FOLDER_ID?{parents:[process.env.GOOGLE_DRIVE_FOLDER_ID]}:{})};
  const body=Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`),buffer,Buffer.from(`\r\n--${boundary}--`)]);
  const response=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType",{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":`multipart/related; boundary=${boundary}`},body});
  const file=await response.json();
- if(!response.ok||!file.id)throw new Error(file.error?.message||"Could not upload file to Google Drive");
+ if(!response.ok||!file.id){
+  console.error(`Google Drive upload failed (${response.status}): ${file.error?.message||"unknown error"}`);
+  if(response.status===404)throw new Error("Google Drive folder is not found or not accessible by the connected Google account.");
+  throw new Error(file.error?.message||"Could not upload file to Google Drive");
+ }
  return file;
 }
 async function deleteDriveFile(fileId,token,strict=false){
